@@ -1,0 +1,30 @@
+# Binaries
+bangchu
+
+# Test data files
+random_numbers.txt
+random_numbers_with_vietnamese.txt
+converter_test_results_v1.json
+
+# Go specific
+bin/
+.vscode/
+*.test
+*.out
+
+# IDE specific
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Setup script duplicates
+setup_script (1).sh

@@ -4,19 +4,14 @@ A high-performance Go backend service that converts numeric values to properly f
 
 ## Features
 
-- ⚡ **Ultra-fast**: Sub-2ms response times
-- 🎯 **Accurate**: 100% correct Vietnamese language rules
-- 🚀 **High throughput**: 10K+ requests per second
-- 🛡️ **Production ready**: Comprehensive error handling, logging, monitoring
-- 📦 **Containerized**: Docker and Kubernetes ready
-
-## Vietnamese Language Rules Implemented
-
-### Key Edge Cases:
-- **4 (tư vs bốn)**: 24→"hai mười tư" vs 40→"bốn mười" vs 34000→"ba mười bốn nghìn"
-- **1 (một vs mốt)**: 21→"hai mười mốt" vs 101→"một trăm lẻ một"
-- **Zero handling**: Proper "lẻ" placement for 101, 1001, etc.
-- **Scale transitions**: Different rules across thousands/millions/billions
+- ⚡ **High Performance**: Sub-25μs response times for most conversions
+- 🎯 **Accurate**: Implements Vietnamese number conversion rules including:
+  - Special cases for numbers 1 (một/mốt) and 4 (tư/bốn)
+  - Proper handling of zero (lẻ) in numbers like 101, 1001, etc.
+  - Correct scale transitions (thousands, millions, billions, trillions)
+- 🚀 **Efficient**: Optimized implementation with minimal allocations
+- 🛡️ **Production Ready**: Comprehensive error handling and logging
+- 📦 **Container Ready**: Easy Docker deployment
 
 ## Quick Start
 
@@ -29,77 +24,173 @@ A high-performance Go backend service that converts numeric values to properly f
    ```bash
    curl -X POST http://localhost:8080/api/v1/convert \
      -H "Content-Type: application/json" \
-     -d '{"number": 50050050}'
-   ```
-
-3. **Run comprehensive tests:**
-   ```bash
-   ./test_examples.sh
+     -d '{"number": 1433433225}'
    ```
 
 ## API Endpoints
 
-- `POST /api/v1/convert` - Convert number via JSON body
-- `GET /api/v1/convert?number=123` - Convert via URL parameter
-- `GET /health` - Health check
-- `GET /ping` - Simple connectivity test
+### Convert Number to Vietnamese Text
 
-## Example Usage
+`POST /api/v1/convert`
+
+Convert a number to Vietnamese text representation with currency.
+
+**Request:**
+```json
+{
+  "number": 1433433225
+}
+```
+
+**Successful Response (200 OK):**
+```json
+{
+  "number": 1433433225,
+  "vietnamese": "một tỷ bốn trăm ba mươi ba triệu bốn trăm ba mươi ba nghìn hai trăm hai mươi lăm đồng",
+  "processing_time_ms": 0.024084
+}
+```
+
+**Error Response (500 Internal Server Error):**
+```json
+{
+  "error": "Internal Server Error",
+  "code": 500
+}
+```
+
+### Health Check
+
+`GET /health`
+
+Check if the service is running.
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "timestamp": "2025-06-06T00:47:46+07:00"
+}
+```
+
+## Usage Examples
 
 ```bash
-# Basic conversion
+# Convert a number (successful conversion)
 curl -X POST http://localhost:8080/api/v1/convert \
   -H "Content-Type: application/json" \
-  -d '{"number": 34000}'
+  -d '{"number": 1433433225}'
 
-# Response:
-{
-  "number": 34000,
-  "vietnamese": "ba mười bốn nghìn đồng",
-  "processing_time_ms": 0.8
-}
+# Convert a very large number (may hit the limit)
+curl -X POST http://localhost:8080/api/v1/convert \
+  -H "Content-Type: application/json" \
+  -d '{"number": 1433433212125}'
 
-# URL parameter method
-curl "http://localhost:8080/api/v1/convert?number=101"
+# Health check
+curl http://localhost:8080/health
 ```
+
+## Limitations
+
+- **Number Range**: The service handles numbers up to 999 trillion (999,999,999,999,999) accurately.
+- **Large Numbers**: Numbers larger than approximately 10^15 may cause internal server errors.
+- **Negative Numbers**: Currently not supported (will result in error).
+- **Decimals**: Only whole numbers are supported.
+
+## Performance
+
+- **Typical Response Time**: < 0.05ms for most conversions
+- **Memory Usage**: Minimal, with efficient memory pooling
+- **Throughput**: Capable of handling thousands of requests per second
 
 ## Development
 
-```bash
-# Format code
-make fmt
+### Prerequisites
 
-# Run tests
-make test
+- Go 1.21+
+- Make (optional, for convenience commands)
+
+### Building and Running
+
+```bash
+# Install dependencies
+go mod download
+
+# Run the server
+go run cmd/server/main.go
+
+# Or use make
+make run
 
 # Build binary
 make build
 
-# Build Docker image
-make docker
-
-# Run in Docker
-make docker-run
+# Run tests
+make test
 ```
 
-## Performance
+### Testing
 
-- **Latency**: <2ms p99 under 10K RPS load
-- **Memory**: <50MB total footprint
-- **Accuracy**: 100% correct Vietnamese formatting
-- **Range**: Supports numbers up to 999 trillion
+Run the full test suite:
+```bash
+make test
+```
+
+Run performance benchmarks:
+```bash
+make test-perf
+```
+
+## Deployment
+
+### Docker
+
+Build the Docker image:
+```bash
+docker build -t vietnamese-converter .
+```
+
+Run the container:
+```bash
+docker run -p 8080:8080 vietnamese-converter
+```
+
+### Environment Variables
+
+- `PORT`: Port to run the server on (default: 8080)
+- `LOG_LEVEL`: Logging level (debug, info, warn, error) (default: info)
 
 ## Project Structure
 
 ```
-vietnamese-converter/
-├── cmd/server/main.go           # Application entry point
-├── internal/api/                # HTTP layer
-│   ├── handlers/convert.go      # Request handlers
-│   ├── middleware/              # HTTP middleware
-│   └── routes/routes.go         # Route definitions
-├── internal/config/config.go    # Configuration
-├── pkg/converter/vietnamese.go  # Core Vietnamese algorithm
-├── pkg/logger/logger.go         # Logging utilities
-└── Dockerfile                   # Container build
+.
+├── cmd/
+│   └── server/           # Main application entry point
+│       └── main.go
+├── internal/
+│   ├── api/             # API handlers and routes
+│   ├── config/          # Configuration management
+│   └── logger/          # Logging utilities
+├── pkg/
+│   └── converter/       # Core conversion logic
+│       ├── vietnamese.go        # Original implementation
+│       ├── vietnamese_test.go   # Tests
+│       └── vietnamese_optimized.go  # Optimized implementation
+├── scripts/             # Utility scripts
+├── .gitignore
+├── go.mod
+├── go.sum
+└── README.md
 ```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a new Pull Request
+
+## License
+
+[MIT](LICENSE)
