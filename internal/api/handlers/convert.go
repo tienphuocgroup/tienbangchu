@@ -74,7 +74,12 @@ func (h *ConvertHandler) ConvertNumber(w http.ResponseWriter, r *http.Request) {
 	vietnamese, err := h.converter.ConvertWithCurrency(req.Number, req.Currency)
 	if err != nil {
 		h.logger.Error(fmt.Sprintf("Conversion failed: %v", err))
-		h.sendError(w, http.StatusInternalServerError, "Conversion failed", err.Error())
+		if err.Error() == "number too large (max: 999,999,999,999,999)" || err.Error() == "negative numbers not supported" {
+			h.sendError(w, http.StatusBadRequest, "Invalid number", err.Error())
+		} else {
+			// For other unexpected errors from converter (e.g. potential panics if not caught by middleware)
+			h.sendError(w, http.StatusInternalServerError, "Conversion failed unexpectedly", err.Error())
+		}
 		return
 	}
 
@@ -139,7 +144,12 @@ func (h *ConvertHandler) ConvertFromURL(w http.ResponseWriter, r *http.Request) 
 	vietnamese, err := h.converter.ConvertWithCurrency(number, currency)
 	if err != nil {
 		h.logger.Error(fmt.Sprintf("Conversion failed: %v", err))
-		h.sendError(w, http.StatusInternalServerError, "Conversion failed", err.Error())
+		if err.Error() == "number too large (max: 999,999,999,999,999)" || err.Error() == "negative numbers not supported" {
+			h.sendError(w, http.StatusBadRequest, "Invalid number", err.Error())
+		} else {
+			// For other unexpected errors from converter (e.g. potential panics if not caught by middleware)
+			h.sendError(w, http.StatusInternalServerError, "Conversion failed unexpectedly", err.Error())
+		}
 		return
 	}
 

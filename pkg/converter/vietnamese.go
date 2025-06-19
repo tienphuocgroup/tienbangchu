@@ -82,14 +82,7 @@ func (vc *vietnameseConverter) ConvertWithCurrency(number int64, currency string
 		groupText := vc.convertThreeDigitGroup(group, scaleIndex, i == 0)
 
 		if groupText != "" && group != 0 {
-			// For the highest group (billions and above), always include the digit and scale
-			if scaleIndex > 2 && len(parts) == 0 {
-				// e.g., 8,734,265,638 → 8 tỷ ...
-				billions := group
-				groupText = vc.units[billions] + " " + vc.scales[scaleIndex]
-				parts = append(parts, groupText)
-				continue
-			}
+
 			if scaleIndex > 0 && scaleIndex < len(vc.scales) {
 				groupText += " " + vc.scales[scaleIndex]
 			}

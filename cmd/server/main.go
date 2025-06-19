@@ -60,10 +60,24 @@ func main() {
 
 func setupRouter(convertHandler *handlers.ConvertHandler, logger logger.Logger) *chi.Mux {
 	r := chi.NewRouter()
+
+	// Middlewares
 	r.Use(middleware.RequestLogger(logger))
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer(logger))
 	r.Use(middleware.RateLimiter(10000))
+
+	// API routes
 	routes.SetupConvertRoutes(r, convertHandler)
+
+	// Static file server for JS, CSS, etc.
+	fs := http.FileServer(http.Dir("web/static"))
+	r.Handle("/static/*", http.StripPrefix("/static/", fs))
+
+	// Serve the PO page
+	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "web/static/index.html")
+	})
+
 	return r
 }
