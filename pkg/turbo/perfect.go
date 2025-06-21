@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -164,6 +165,10 @@ func (s *PerfectService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.handleHealth(writer, r)
 	case r.Method == "GET" && r.URL.Path == "/metrics":
 		s.handleMetrics(writer, r)
+	case r.Method == "GET" && r.URL.Path == "/":
+		s.handleIndex(writer, r)
+	case r.Method == "GET" && strings.HasPrefix(r.URL.Path, "/static/"):
+		s.handleStatic(writer, r)
 	default:
 		writer.WriteHeader(404)
 		return
@@ -373,4 +378,236 @@ func unsafeString(n int) string {
 	buf := make([]byte, 0, 10)
 	buf = appendInt(buf, int64(n))
 	return *(*string)(unsafe.Pointer(&buf))
+}
+
+// handleIndex serves the main web interface
+func (s *PerfectService) handleIndex(w *FastResponseWriter, r *http.Request) {
+	html := `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚀 Turbo Vietnamese Converter</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+        .container {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 40px;
+            width: 90%;
+            max-width: 600px;
+            border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+            font-weight: 700;
+        }
+        .subtitle {
+            text-align: center;
+            margin-bottom: 30px;
+            opacity: 0.8;
+            font-size: 1.1em;
+        }
+        .input-group {
+            margin-bottom: 30px;
+        }
+        label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 600;
+            font-size: 1.1em;
+        }
+        input[type="number"] {
+            width: 100%;
+            padding: 20px;
+            font-size: 1.5em;
+            border: none;
+            border-radius: 15px;
+            background: rgba(255,255,255,0.9);
+            color: #333;
+            text-align: center;
+            font-weight: 600;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+        input[type="number"]:focus {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+        .result {
+            background: rgba(255,255,255,0.15);
+            border-radius: 15px;
+            padding: 25px;
+            margin-top: 20px;
+            min-height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3em;
+            font-weight: 500;
+            text-align: center;
+            line-height: 1.4;
+            border: 2px solid rgba(255,255,255,0.1);
+        }
+        .loading {
+            opacity: 0.6;
+            font-style: italic;
+        }
+        .error {
+            background: rgba(255,99,99,0.2);
+            border-color: rgba(255,99,99,0.3);
+            color: #ffcccc;
+        }
+        .metrics {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            font-size: 0.9em;
+        }
+        .metric {
+            text-align: center;
+        }
+        .metric-value {
+            font-weight: 700;
+            font-size: 1.2em;
+            display: block;
+        }
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Turbo Vietnamese</h1>
+        <div class="subtitle">Ultra-fast number conversion • Sub-100μs latency</div>
+        
+        <div class="input-group">
+            <label for="numberInput">Enter a number:</label>
+            <input type="number" id="numberInput" placeholder="123456789" min="0" max="999999999999999">
+        </div>
+        
+        <div class="result" id="result">
+            <span class="loading">Enter a number to see the Vietnamese conversion...</span>
+        </div>
+        
+        <div class="metrics">
+            <div class="metric">
+                <span class="metric-value" id="latency">-</span>
+                <span>Latency (μs)</span>
+            </div>
+            <div class="metric">
+                <span class="metric-value" id="requests">0</span>
+                <span>Requests</span>
+            </div>
+            <div class="metric">
+                <span class="metric-value" id="avg-latency">-</span>
+                <span>Avg (μs)</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const input = document.getElementById('numberInput');
+        const result = document.getElementById('result');
+        const latencyEl = document.getElementById('latency');
+        const requestsEl = document.getElementById('requests');
+        const avgLatencyEl = document.getElementById('avg-latency');
+        
+        let requestCount = 0;
+        let totalLatency = 0;
+        let debounceTimer;
+
+        function updateMetrics(latency) {
+            requestCount++;
+            totalLatency += latency;
+            const avgLatency = Math.round(totalLatency / requestCount);
+            
+            latencyEl.textContent = Math.round(latency);
+            requestsEl.textContent = requestCount;
+            avgLatencyEl.textContent = avgLatency;
+            
+            // Add pulse animation to latency
+            latencyEl.parentElement.classList.add('pulse');
+            setTimeout(() => latencyEl.parentElement.classList.remove('pulse'), 600);
+        }
+
+        async function convertNumber(number) {
+            if (!number || number === '') {
+                result.innerHTML = '<span class="loading">Enter a number to see the Vietnamese conversion...</span>';
+                return;
+            }
+
+            const startTime = performance.now();
+            
+            try {
+                result.innerHTML = '<span class="loading">Converting...</span>';
+                
+                const response = await fetch('/convert', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ number: parseInt(number) })
+                });
+                
+                const endTime = performance.now();
+                const latency = (endTime - startTime) * 1000; // Convert to microseconds
+                
+                if (!response.ok) {
+                    throw new Error('Conversion failed');
+                }
+                
+                const data = await response.json();
+                result.innerHTML = data.vietnamese;
+                result.className = 'result';
+                
+                updateMetrics(latency);
+                
+            } catch (error) {
+                result.innerHTML = 'Error: Could not convert number';
+                result.className = 'result error';
+            }
+        }
+
+        input.addEventListener('input', (e) => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                convertNumber(e.target.value);
+            }, 150); // 150ms debounce for smooth typing
+        });
+
+        // Convert initial placeholder on load
+        setTimeout(() => convertNumber('123456789'), 500);
+    </script>
+</body>
+</html>`
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write([]byte(html))
+}
+
+// handleStatic serves static files (minimal implementation)
+func (s *PerfectService) handleStatic(w *FastResponseWriter, r *http.Request) {
+	// For now, just return 404 - can be extended for CSS/JS files
+	w.WriteHeader(404)
 }
