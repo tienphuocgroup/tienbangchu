@@ -1,0 +1,21 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+scrape_configs:
+  - job_name: 'vietnamese-turbo'
+    static_configs:
+      - targets: ['vietnamese-turbo:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 1s
+    scrape_timeout: 500ms
+    
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['nginx-lb:80']
+    metrics_path: '/nginx_status'
+    scrape_interval: 5s

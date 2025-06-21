@@ -1,0 +1,68 @@
+.PHONY: turbo-build turbo-test turbo-benchmark turbo-run turbo-docker turbo-deploy turbo-load-test
+
+# Build the turbo service
+turbo-build:
+	CGO_ENABLED=0 GOOS=linux go build -ldflags='-w -s' -o bin/turbo-service cmd/turbo/main.go
+
+# Run comprehensive tests for turbo service
+turbo-test:
+	go test -v ./pkg/turbo/...
+
+# Run performance benchmarks
+turbo-benchmark:
+	go test -bench=. -benchmem -cpu=1,2,4,8 ./pkg/turbo/
+	go test -bench=BenchmarkZeroAllocConverter -count=5 ./pkg/turbo/
+
+# Run the turbo service locally
+turbo-run:
+	go run cmd/turbo/main.go
+
+# Build Docker image
+turbo-docker:
+	docker build -f Dockerfile.turbo -t vietnamese-turbo:latest .
+
+# Deploy with Docker Compose
+turbo-deploy:
+	docker-compose -f docker-compose.turbo.yml up -d
+
+# Stop deployment
+turbo-stop:
+	docker-compose -f docker-compose.turbo.yml down
+
+# Load test against running service
+turbo-load-test:
+	go test -v -run=TestLoad1000RPS ./pkg/turbo/
+
+# Performance profiling
+turbo-profile:
+	go test -bench=BenchmarkZeroAllocConverter -cpuprofile=cpu.prof -memprofile=mem.prof ./pkg/turbo/
+	go tool pprof cpu.prof
+	
+# Memory analysis
+turbo-memory:
+	go test -bench=BenchmarkMemoryFootprint -memprofile=mem.prof ./pkg/turbo/
+	go tool pprof mem.prof
+
+# Full performance suite
+turbo-perf: turbo-benchmark turbo-load-test
+	@echo "✓ Performance testing complete"
+
+# Production deployment check
+turbo-production-check:
+	@echo "🔍 Running production readiness checks..."
+	@go test -v -run=TestPerformanceTarget ./pkg/turbo/
+	@go test -v -run=TestThroughputTarget ./pkg/turbo/
+	@go test -v -run=TestMemoryUsage ./pkg/turbo/
+	@echo "✓ Production checks passed"
+
+# Clean up
+turbo-clean:
+	rm -rf bin/ *.prof test_report_*.json
+	docker-compose -f docker-compose.turbo.yml down --rmi all --volumes
+
+# Development workflow
+turbo-dev: turbo-test turbo-benchmark turbo-run
+
+# CI/CD pipeline
+turbo-ci: turbo-test turbo-benchmark turbo-production-check turbo-docker
+	@echo "✓ CI pipeline complete"
