@@ -1,0 +1,233 @@
+openapi: 3.0.3
+info:
+  title: Vietnamese Number Converter API
+  description: High-performance REST API for converting numeric values to Vietnamese text. Handles linguistic exceptions (mốt/tư/lăm/lẻ) and supports custom currency suffixes.
+  version: 1.0.0
+  contact:
+    name: Vietnamese Number Converter Team
+servers:
+  - url: http://localhost:8080
+    description: Local development
+  - url: https://bangchu.internal.yourcompany.com
+    description: Internal production
+
+tags:
+  - name: conversion
+    description: Number to Vietnamese text conversion
+  - name: system
+    description: Health checks and diagnostics
+
+paths:
+  /api/v1/convert:
+    post:
+      tags:
+        - conversion
+      summary: Convert number to Vietnamese text
+      description: Converts an integer to its Vietnamese text representation with optional currency suffix. Uses buffer pooling and pre-computed lookup tables for sub-25μs response times.
+      operationId: ConvertNumberPost
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConvertRequest'
+            examples:
+              basic:
+                summary: Basic conversion
+                value: { "number": 1433433225 }
+              with_currency:
+                summary: Custom currency
+                value: { "number": 1000000, "currency": "VNĐ" }
+              zero:
+                summary: Zero value
+                value: { "number": 0 }
+              max_value:
+                summary: Maximum supported value
+                value: { "number": 999999999999999 }
+      responses:
+        '200':
+          description: Successful conversion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConvertResponse'
+              example:
+                number: 1433433225
+                vietnamese: một tỷ bốn trăm ba mươi ba triệu bốn trăm ba mươi ba nghìn hai trăm hai mươi lăm đồng
+                processing_time_ms: 0.024084
+        '400':
+          description: Bad request - invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                negative_number:
+                  summary: Negative number
+                  value: { "error": "Number must be non-negative", "code": 400 }
+                number_too_large:
+                  summary: Number exceeds maximum
+                  value: { "error": "Number too large", "details": "Maximum supported: 999,999,999,999,999", "code": 400 }
+                invalid_body:
+                  summary: Malformed JSON
+                  value: { "error": "Invalid request body", "code": 400 }
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: Rate limit exceeded
+                code: 429
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: Internal Server Error
+                code: 500
+      x-rate-limit: 10000 requests per second
+    get:
+      tags:
+        - conversion
+      summary: Convert number via query parameter
+      description: Alternative endpoint for converting numbers using URL query parameters. Useful for quick testing or simple integrations.
+      operationId: ConvertNumberGet
+      parameters:
+        - name: number
+          in: query
+          required: true
+          description: Integer value to convert (0 to 999,999,999,999,999)
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+            maximum: 999999999999999
+          example: 123456789
+        - name: currency
+          in: query
+          required: false
+          description: Currency suffix (default: "đồng")
+          schema:
+            type: string
+            default: đồng
+          example: VNĐ
+      responses:
+        '200':
+          description: Successful conversion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConvertResponse'
+        '400':
+          description: Bad request - missing or invalid parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /health:
+    get:
+      tags:
+        - system
+      summary: Health check
+      description: Returns service health status. Used by load balancers and monitoring systems.
+      operationId: HealthCheck
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: healthy
+
+  /ping:
+    get:
+      tags:
+        - system
+      summary: Simple connectivity test
+      description: Returns plain text "pong" for basic connectivity checks. Lower overhead than /health.
+      operationId: Ping
+      responses:
+        '200':
+          description: Service is reachable
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: pong
+
+components:
+  schemas:
+    ConvertRequest:
+      type: object
+      required:
+        - number
+      properties:
+        number:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 999999999999999
+          description: Integer value to convert to Vietnamese text
+          example: 1433433225
+        currency:
+          type: string
+          default: đồng
+          description: Currency suffix appended to conversion result. Empty string omits currency.
+          example: VNĐ
+      example:
+        number: 1433433225
+        currency: đồng
+
+    ConvertResponse:
+      type: object
+      properties:
+        number:
+          type: integer
+          format: int64
+          description: Original input number
+        vietnamese:
+          type: string
+          description: Vietnamese text representation of the number
+        processing_time_ms:
+          type: number
+          format: double
+          description: Server-side processing time in milliseconds
+      example:
+        number: 1433433225
+        vietnamese: một tỷ bốn trăm ba mươi ba triệu bốn trăm ba mươi ba nghìn hai trăm hai mươi lăm đồng
+        processing_time_ms: 0.024084
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+        details:
+          type: string
+          description: Additional error context (optional)
+        code:
+          type: integer
+          description: HTTP status code
+      example:
+        error: Number too large
+        details: Maximum supported: 999,999,999,999,999
+        code: 400
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - healthy
+          description: Service health status
+      example:
+        status: healthy

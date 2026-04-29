@@ -141,6 +141,12 @@ Run performance benchmarks:
 make test-perf
 ```
 
+## API Documentation
+
+- **[API Reference](docs/api-reference.md)** — Endpoint details, request/response examples, client code samples
+- **[OpenAPI 3.0 Spec](docs/api-openapi-spec.yaml)** — Machine-readable spec for auto-generating client SDKs
+- **[Deployment Guide](docs/deployment-guide.md)** — Docker, Nginx, Kubernetes, and scaling configurations
+
 ## Deployment
 
 ### Docker
